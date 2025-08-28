@@ -1,0 +1,61 @@
+import java.util.Scanner;
+
+public class StudentMarksCalculator {
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+
+        // Input number of students and subjects
+        System.out.print("Enter number of students: ");
+        int numStudents = scanner.nextInt();
+
+        System.out.print("Enter number of subjects per student: ");
+        int numSubjects = scanner.nextInt();
+
+        // Arrays to store data
+        String[] names = new String[numStudents];
+        int[][] marks = new int[numStudents][numSubjects];
+        int[] totalMarks = new int[numStudents];
+        double[] averageMarks = new double[numStudents];
+
+        // Input details for each student
+        for (int i = 0; i < numStudents; i++) {
+            scanner.nextLine(); // Consume newline left by nextInt()
+            System.out.print("\nEnter name of student " + (i + 1) + ": ");
+            names[i] = scanner.nextLine();
+
+            int total = 0;
+            for (int j = 0; j < numSubjects; j++) {
+                System.out.print("Enter marks for Subject " + (j + 1) + ": ");
+                marks[i][j] = scanner.nextInt();
+                total += marks[i][j];
+            }
+            totalMarks[i] = total;
+            averageMarks[i] = (double) total / numSubjects;
+        }
+
+        // Display results
+        System.out.println("\n--- Student Report ---");
+        for (int i = 0; i < numStudents; i++) {
+            System.out.println("Student: " + names[i]);
+            System.out.print("Marks: ");
+            for (int j = 0; j < numSubjects; j++) {
+                System.out.print(marks[i][j] + " ");
+            }
+            System.out.println("\nTotal: " + totalMarks[i]);
+            System.out.println("Average: " + averageMarks[i]);
+            System.out.println();
+        }
+
+        // Find the student with the highest total marks
+        int topIndex = 0;
+        for (int i = 1; i < numStudents; i++) {
+            if (totalMarks[i] > totalMarks[topIndex]) {
+                topIndex = i;
+            }
+        }
+
+        System.out.println("Topper: " + names[topIndex] + " with total marks: " + totalMarks[topIndex]);
+    }
+}
+
