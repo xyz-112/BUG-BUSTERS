@@ -1,0 +1,14 @@
+// Import the Express library
+const express = require('express');
+const app = express();
+const port = 3000;
+
+// Define a simple GET route
+app.get('/api/hello', (req, res) => {
+  res.send('Hello,world!');
+});
+
+// Start the server
+app.listen(port, () => {
+  console.log(`API running at http://localhost:${port}`);
+});
