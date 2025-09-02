@@ -1,0 +1,14 @@
+function Notes({ notes, deleteNote }) {
+  return (
+    <ul>
+      {notes.map(n => (
+        <li key={n._id}>
+          <strong>{n.title}:</strong> {n.content}
+          <button onClick={() => deleteNote(n._id)}>Delete</button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+export default Notes
