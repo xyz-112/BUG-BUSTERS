@@ -1,2 +1,1 @@
-[Blue_Professional_Project_Proposal_Presentation_20250904_165227_0000[1].pptx](https://github.com/user-attachments/files/22172995/Blue_Professional_Project_Proposal_Presentation_20250904_165227_0000.1.pptx)
-presentation
+"C:\Users\vatsv\OneDrive\Documents\Zoom\2025-09-05 23.47.22 Vasundhara Vats's Zoom Meeting\video1375654295.mp4"
