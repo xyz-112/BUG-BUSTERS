@@ -1,0 +1,2 @@
+[Blue_Professional_Project_Proposal_Presentation_20250904_165227_0000[1].pptx](https://github.com/user-attachments/files/22172995/Blue_Professional_Project_Proposal_Presentation_20250904_165227_0000.1.pptx)
+presentation
