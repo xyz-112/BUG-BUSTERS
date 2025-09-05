@@ -6,32 +6,57 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-let tasks = [
-  { id: 1, title: "Setup project", status: "todo" },
-  { id: 2, title: "Build backend", status: "inprogress" },
-  { id: 3, title: "Design UI", status: "done" }
-];
+let users = new Map(); // socket.id -> username
+let posts = []; // {id, user, text, likes, comments:[{user,text}]}
 
 io.on("connection", (socket) => {
-  socket.emit("init", tasks);
-
-  socket.on("add", (title) => {
-    const t = { id: Date.now(), title, status: "todo" };
-    tasks.push(t);
-    io.emit("update", tasks);
+  socket.on("join", (username) => {
+    const name = username?.trim() || "Guest";
+    users.set(socket.id, name);
+    socket.emit("init", { posts, me: name });
+    io.emit("system", `${name} joined`);
   });
 
-  socket.on("move", ({ id, status }) => {
-    const task = tasks.find((t) => t.id === id);
-    if (task) {
-      task.status = status;
-      io.emit("update", tasks);
+  socket.on("post", (text) => {
+    const user = users.get(socket.id);
+    if (!user || !text.trim()) return;
+    const post = {
+      id: Date.now(),
+      user,
+      text: text.trim().slice(0, 300),
+      likes: [],
+      comments: []
+    };
+    posts.unshift(post);
+    io.emit("update", posts);
+  });
+
+  socket.on("like", (id) => {
+    const user = users.get(socket.id);
+    const post = posts.find((p) => p.id === id);
+    if (!post) return;
+    if (post.likes.includes(user)) {
+      post.likes = post.likes.filter((u) => u !== user);
+    } else {
+      post.likes.push(user);
     }
+    io.emit("update", posts);
   });
 
-  socket.on("delete", (id) => {
-    tasks = tasks.filter((t) => t.id !== id);
-    io.emit("update", tasks);
+  socket.on("comment", ({ id, text }) => {
+    const user = users.get(socket.id);
+    const post = posts.find((p) => p.id === id);
+    if (!user || !post || !text.trim()) return;
+    post.comments.push({ user, text: text.trim().slice(0, 200) });
+    io.emit("update", posts);
+  });
+
+  socket.on("disconnect", () => {
+    const name = users.get(socket.id);
+    if (name) {
+      users.delete(socket.id);
+      io.emit("system", `${name} left`);
+    }
   });
 });
 
@@ -39,80 +64,80 @@ const page = `
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>Task Manager</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8"/>
+  <title>Social Media Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <style>
-    body { margin:0; font-family:system-ui,Arial; background:#0b0f14; color:#e6e6e6; }
-    header { padding:16px; background:#111827; display:flex; justify-content:space-between; align-items:center; }
-    #progress { font-size:.9rem; opacity:.8; }
-    main { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:16px; height:calc(100vh - 64px); }
-    section { background:#0f172a; border:1px solid #1e293b; border-radius:12px; display:flex; flex-direction:column; }
-    h2 { margin:0; padding:12px; border-bottom:1px solid #1e293b; font-size:1.1rem; }
-    .tasks { flex:1; padding:12px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
-    .task { background:#1e293b; padding:10px 12px; border-radius:8px; cursor:grab; }
-    .task:active { opacity:.7; }
-    footer { padding:12px; border-top:1px solid #1e293b; }
-    input { width:80%; padding:8px; border-radius:8px; border:1px solid #334155; background:#0f172a; color:#e6e6e6; }
-    button { padding:8px 12px; border:none; border-radius:8px; background:#2563eb; color:#fff; cursor:pointer; }
+    body{margin:0;font-family:sans-serif;background:#0b0f14;color:#eee;}
+    header{padding:16px;background:#111827;display:flex;gap:10px;}
+    input,button{padding:8px;border-radius:6px;border:none;}
+    button{background:#2563eb;color:white;cursor:pointer;}
+    #feed{padding:16px;display:flex;flex-direction:column;gap:12px;}
+    .post{background:#1e293b;padding:12px;border-radius:8px;}
+    .meta{font-size:.9rem;opacity:.8;margin-bottom:6px;}
+    .comments{margin-top:8px;padding-left:10px;border-left:2px solid #334155;}
+    .comment{font-size:.9rem;margin:4px 0;}
   </style>
 </head>
 <body>
   <header>
-    <strong>📋 Task Manager</strong>
-    <span id="progress"></span>
+    <input id="name" placeholder="Enter your name"/>
+    <input id="text" placeholder="What's on your mind?" style="flex:1"/>
+    <button onclick="post()">Post</button>
   </header>
-  <main>
-    <section ondrop="drop(event,'todo')" ondragover="allow(event)">
-      <h2>To Do</h2>
-      <div id="todo" class="tasks"></div>
-      <footer>
-        <input id="newTask" placeholder="New task"/>
-        <button onclick="addTask()">Add</button>
-      </footer>
-    </section>
-    <section ondrop="drop(event,'inprogress')" ondragover="allow(event)">
-      <h2>In Progress</h2>
-      <div id="inprogress" class="tasks"></div>
-    </section>
-    <section ondrop="drop(event,'done')" ondragover="allow(event)">
-      <h2>Done</h2>
-      <div id="done" class="tasks"></div>
-    </section>
-  </main>
+  <div id="feed"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io();
-    let tasks=[];
+    const socket=io();
+    let me="";
+    const feed=document.getElementById("feed");
 
-    socket.on("init", data=>{ tasks=data; render(); });
-    socket.on("update", data=>{ tasks=data; render(); });
+    socket.on("init", d=>{me=d.me; render(d.posts);});
+    socket.on("update", render);
+    socket.on("system", msg=>{
+      const div=document.createElement("div");
+      div.textContent=msg;
+      div.style="opacity:.6;text-align:center;margin:6px;";
+      feed.prepend(div);
+    });
 
-    function render(){
-      ["todo","inprogress","done"].forEach(id=>{
-        document.getElementById(id).innerHTML="";
-      });
-      tasks.forEach(t=>{
-        const div=document.createElement("div");
-        div.className="task";
-        div.textContent=t.title;
-        div.draggable=true;
-        div.ondragstart=e=> e.dataTransfer.setData("id",t.id);
-        div.ondblclick=()=> socket.emit("delete",t.id);
-        document.getElementById(t.status).appendChild(div);
-      });
-      const done=tasks.filter(t=>t.status==="done").length;
-      document.getElementById("progress").textContent=\`\${done}/\${tasks.length} Done\`;
+    function join(){
+      const name=document.getElementById("name").value.trim()||"Guest";
+      socket.emit("join",name);
+      document.getElementById("name").disabled=true;
+    }
+    document.getElementById("name").addEventListener("change",join);
+
+    function post(){
+      const t=document.getElementById("text").value.trim();
+      if(!t) return;
+      socket.emit("post",t);
+      document.getElementById("text").value="";
     }
 
-    function allow(e){ e.preventDefault(); }
-    function drop(e,status){ e.preventDefault(); socket.emit("move",{id:+e.dataTransfer.getData("id"),status}); }
-    function addTask(){ 
-      const v=document.getElementById("newTask").value.trim();
-      if(!v) return;
-      socket.emit("add",v);
-      document.getElementById("newTask").value="";
+    function like(id){ socket.emit("like",id); }
+    function comment(id){
+      const text=prompt("Write a comment:");
+      if(text) socket.emit("comment",{id,text});
+    }
+
+    function render(posts){
+      feed.innerHTML="";
+      posts.forEach(p=>{
+        const div=document.createElement("div");
+        div.className="post";
+        div.innerHTML=\`
+          <div class="meta">\${p.user}</div>
+          <div>\${p.text}</div>
+          <div>
+            <button onclick="like(\${p.id})">❤️ \${p.likes.length}</button>
+            <button onclick="comment(\${p.id})">💬 \${p.comments.length}</button>
+          </div>
+          <div class="comments">\${p.comments.map(c=>'<div class="comment"><b>'+c.user+':</b> '+c.text+'</div>').join("")}</div>
+        \`;
+        feed.appendChild(div);
+      });
     }
   </script>
 </body>
@@ -121,5 +146,4 @@ const page = `
 
 app.get("/",(_,res)=>res.send(page));
 
-const PORT=3000;
-server.listen(PORT,()=>console.log("Task Manager running at http://localhost:"+PORT));
+server.listen(3000,()=>console.log("Social Media Dashboard running at http://localhost:3000"));
